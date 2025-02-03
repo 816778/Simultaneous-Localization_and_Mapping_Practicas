@@ -117,6 +117,8 @@ display_map_results (map);
 function[map] = Kalman_filter_slam (map, steps)
 
     global world;
+
+    map_list = {};
     
     % initial ground truth of hat_x 
     map.true_x = zeros(steps);
@@ -142,6 +144,8 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.error_x = [];
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
+
+    map_interval = steps;
     
     for k = 0:steps
         
@@ -169,7 +173,17 @@ function[map] = Kalman_filter_slam (map, steps)
         map.stats.sigma_x = [map.stats.sigma_x; sqrt(map.hat_P(1,1))];
         map.stats.cost_t = [map.stats.cost_t; toc(tstart)];
         
+        % if mod(k, map_interval) == 0 || k == steps
+        %     map_list{end+1} = map;
+        %     map.hat_x = [map.hat_x(1)]; 
+        %     % map.true_x = [map.true_x(1)]; %%%%%%
+        %     map.hat_P = [map.hat_P(1,1)];
+        %     map.n = 0;  
+        %     map.true_ids = []; 
+        % end
     end
+
+    % map = join_maps(map_list);
 end
 
 %-------------------------------------------------------------------------
@@ -256,6 +270,7 @@ function[map] = update_map (map, measurements)
     if n_f == 0
         return; % No hay características
     end
+    
 
     z_f = measurements.z_f;  % Distancia medida a características conocidas
     R_f = measurements.R_f;  % Covarianza de la medición
@@ -268,8 +283,10 @@ function[map] = update_map (map, measurements)
     
     % Construcción de la matriz de observación H_k
     H_k = sparse(n_f, length(map.hat_x));  %  matriz sparse
+    % H_k = zeros(measurements.ids_f, length(map.hat_x));
+    H_k(:, 1) = -1;
+    % H_k(:, 2:1+measurements.ids_f) = speye(measurements.ids_f); %m+1 x m+n+1
     for i = 1:n_f
-        H_k(i, 1) = -1; 
         H_k(i, measurements.x_pos_f(i)) = 1;
     end
 
@@ -315,11 +332,43 @@ function [map] = add_new_features (map, measurements)
     map.true_ids = [map.true_ids; measurements.ids_n];  % Append new feature IDs
     map.true_x = [map.true_x; map.true_x(1) + z_n];  % True feature positions
     map.n = n_old + n_new;
-    
+         
     if config.step_by_step
         fprintf('Add %d new features...\n',length(measurements.ids_n));
         plot_correlation(map.hat_P);
         pause
+    end
+end
+
+%-------------------------------------------------------------------------
+% join maps
+%-------------------------------------------------------------------------
+function[map] = join_maps (map_list)
+    global map
+    map = map_list{1};
+    map.true_x = map_list{end}.true_x;
+    map.stats = map_list{end}.stats;
+    for k = 2:length(map_list)
+        new_map = map_list{k};
+        n1 = map.n;
+        n2 = new_map.n;
+
+        I = eye(n1 + 1);
+        extra_rows = zeros(n2, n1 + 1);
+        extra_rows(:, 1) = 1;
+        J1 = [I; extra_rows];
+        J1 = sparse(J1);
+
+        J2 = zeros(1+ n1 + n2, n2 + 1);
+        J2(1, 1) = 1;
+        J2(n1 + 2:end, 2:end) = eye(n2);
+        J2 = sparse(J2);
+
+        map.hat_x = J1 * map.hat_x + J2 * new_map.hat_x;
+        map.hat_P = J1 * map.hat_P * J1' + J2 * new_map.hat_P * J2';
+        % map.true_x = J1 * map.true_x + J2 * new_map.true_x; %%%%%%%%%%%%
+        map.n = map.n + new_map.n;
+        map.true_ids = [map.true_ids; new_map.true_ids];
     end
 end
 
