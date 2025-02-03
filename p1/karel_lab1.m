@@ -145,7 +145,8 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
 
-    map_interval = steps;
+    map_interval = steps/4;
+    map_joining = false;
     
     for k = 0:steps
         
@@ -172,14 +173,26 @@ function[map] = Kalman_filter_slam (map, steps)
         map.stats.error_x = [map.stats.error_x; (map.stats.true_x(end) - map.hat_x(1))];
         map.stats.sigma_x = [map.stats.sigma_x; sqrt(map.hat_P(1,1))];
         map.stats.cost_t = [map.stats.cost_t; toc(tstart)];
-        
-        % if mod(k, map_interval) == 0 || k == steps
+
+        % if map_joining
+        %     map_joining = false;
+        %     map.stats.true_x = [map.stats.true_x(2:end)];
+        % end
+        % 
+        % if mod(k+1, map_interval) == 0 || k == steps
+        %     map_joining = true;
         %     map_list{end+1} = map;
         %     map.hat_x = [map.hat_x(1)]; 
-        %     % map.true_x = [map.true_x(1)]; %%%%%%
         %     map.hat_P = [map.hat_P(1,1)];
+        % 
+        %     % map.true_x = [map.true_x(1)]; %%%%%%
         %     map.n = 0;  
         %     map.true_ids = []; 
+        % 
+        %     map.stats.true_x = [map.stats.true_x(end)];
+        %     map.stats.error_x = [];
+        %     map.stats.sigma_x = [];
+        %     map.stats.cost_t = [];
         % end
     end
 
@@ -270,25 +283,18 @@ function[map] = update_map (map, measurements)
     if n_f == 0
         return; % No hay características
     end
-    
-
+   
     z_f = measurements.z_f;  % Distancia medida a características conocidas
     R_f = measurements.R_f;  % Covarianza de la medición
-
-    x_r = map.hat_x(1);  % Posición estimada del robot
-    x_f = map.hat_x(measurements.x_pos_f);  % Posiciones estimadas de características
-
-    h_x = x_f - x_r;
-    y_k = z_f - h_x;
     
     % Construcción de la matriz de observación H_k
     H_k = sparse(n_f, length(map.hat_x));  %  matriz sparse
-    % H_k = zeros(measurements.ids_f, length(map.hat_x));
     H_k(:, 1) = -1;
-    % H_k(:, 2:1+measurements.ids_f) = speye(measurements.ids_f); %m+1 x m+n+1
     for i = 1:n_f
         H_k(i, measurements.x_pos_f(i)) = 1;
     end
+
+    y_k = z_f - H_k * map.hat_x;
 
     S_k = H_k * map.hat_P * H_k' + R_f;
     % Ganancia de Kalman K_k
@@ -367,8 +373,14 @@ function[map] = join_maps (map_list)
         map.hat_x = J1 * map.hat_x + J2 * new_map.hat_x;
         map.hat_P = J1 * map.hat_P * J1' + J2 * new_map.hat_P * J2';
         % map.true_x = J1 * map.true_x + J2 * new_map.true_x; %%%%%%%%%%%%
+
         map.n = map.n + new_map.n;
         map.true_ids = [map.true_ids; new_map.true_ids];
+
+        map.stats.true_x = [map.stats.true_x; new_map.stats.true_x(1:end-1)];
+        map.stats.error_x = [map.stats.error_x; new_map.stats.error_x];
+        map.stats.sigma_x = [map.stats.sigma_x; new_map.stats.sigma_x];
+        map.stats.cost_t = [map.stats.cost_t; new_map.stats.cost_t];
     end
 end
 
