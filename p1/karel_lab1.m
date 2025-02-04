@@ -174,29 +174,24 @@ function[map] = Kalman_filter_slam (map, steps)
         map.stats.sigma_x = [map.stats.sigma_x; sqrt(map.hat_P(1,1))];
         map.stats.cost_t = [map.stats.cost_t; toc(tstart)];
 
-        % if map_joining
-        %     map_joining = false;
-        %     map.stats.true_x = [map.stats.true_x(2:end)];
-        % end
-        % 
-        % if mod(k+1, map_interval) == 0 || k == steps
-        %     map_joining = true;
-        %     map_list{end+1} = map;
-        %     map.hat_x = [map.hat_x(1)]; 
-        %     map.hat_P = [map.hat_P(1,1)];
-        % 
-        %     % map.true_x = [map.true_x(1)]; %%%%%%
-        %     map.n = 0;  
-        %     map.true_ids = []; 
-        % 
-        %     map.stats.true_x = [map.stats.true_x(end)];
-        %     map.stats.error_x = [];
-        %     map.stats.sigma_x = [];
-        %     map.stats.cost_t = [];
-        % end
+        if mod(k+1, map_interval) == 0 || k == steps
+            % map_joining = true;
+            map_list{end+1} = map;
+            map.hat_x = [map.hat_x(1)]; 
+            map.hat_P = [map.hat_P(1,1)];
+
+            map.true_x = [map.true_x(1)]; %%%%%%
+            map.n = 0;  
+            map.true_ids = []; 
+
+            map.stats.true_x = [map.stats.true_x(end)];
+            map.stats.error_x = [];
+            map.stats.sigma_x = [];
+            map.stats.cost_t = [];
+        end
     end
 
-    % map = join_maps(map_list);
+    map = join_maps(map_list);
 end
 
 %-------------------------------------------------------------------------
@@ -293,7 +288,8 @@ function[map] = update_map (map, measurements)
     for i = 1:n_f
         H_k(i, measurements.x_pos_f(i)) = 1;
     end
-
+    
+    var = H_k * map.hat_x;
     y_k = z_f - H_k * map.hat_x;
 
     S_k = H_k * map.hat_P * H_k' + R_f;
@@ -352,8 +348,8 @@ end
 function[map] = join_maps (map_list)
     global map
     map = map_list{1};
-    map.true_x = map_list{end}.true_x;
-    map.stats = map_list{end}.stats;
+    % map.true_x = map_list{end}.true_x;
+    % map.stats = map_list{end}.stats;
     for k = 2:length(map_list)
         new_map = map_list{k};
         n1 = map.n;
@@ -372,7 +368,7 @@ function[map] = join_maps (map_list)
 
         map.hat_x = J1 * map.hat_x + J2 * new_map.hat_x;
         map.hat_P = J1 * map.hat_P * J1' + J2 * new_map.hat_P * J2';
-        % map.true_x = J1 * map.true_x + J2 * new_map.true_x; %%%%%%%%%%%%
+        map.true_x = J1 * map.true_x + J2 * new_map.true_x; %%%%%%%%%%%%
 
         map.n = map.n + new_map.n;
         map.true_ids = [map.true_ids; new_map.true_ids];
