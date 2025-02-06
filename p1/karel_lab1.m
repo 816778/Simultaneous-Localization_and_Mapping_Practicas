@@ -145,7 +145,7 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
 
-    map_interval = steps/4;
+    map_interval = steps;
     map_joining = false;
     
     for k = 0:steps
@@ -175,23 +175,23 @@ function[map] = Kalman_filter_slam (map, steps)
         map.stats.cost_t = [map.stats.cost_t; toc(tstart)];
 
         if mod(k+1, map_interval) == 0 || k == steps
-            % map_joining = true;
-            map_list{end+1} = map;
-            map.hat_x = [map.hat_x(1)]; 
-            map.hat_P = [map.hat_P(1,1)];
-
-            map.true_x = [map.true_x(1)]; %%%%%%
-            map.n = 0;  
-            map.true_ids = []; 
-
-            map.stats.true_x = [map.stats.true_x(end)];
-            map.stats.error_x = [];
-            map.stats.sigma_x = [];
-            map.stats.cost_t = [];
+            map_joining = true;
+        %     map_list{end+1} = map;
+        %     map.hat_x = [map.hat_x(1)]; 
+        %     map.hat_P = [map.hat_P(1,1)];
+        % 
+        %     map.true_x = [map.true_x(1)]; %%%%%%
+        %     map.n = 0;  
+        %     map.true_ids = []; 
+        % 
+        %     map.stats.true_x = [map.stats.true_x(end)];
+        %     map.stats.error_x = [];
+        %     map.stats.sigma_x = [];
+        %     map.stats.cost_t = [];
         end
     end
 
-    map = join_maps(map_list);
+    % map = join_maps(map_list);
 end
 
 %-------------------------------------------------------------------------
