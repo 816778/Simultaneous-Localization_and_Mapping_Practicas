@@ -145,7 +145,7 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
 
-    map_interval = steps;
+    map_interval = steps/8;
     map_joining = false;
     
     for k = 0:steps
@@ -163,7 +163,7 @@ function[map] = Kalman_filter_slam (map, steps)
         if not(isempty(measurements.z_f))
             [map] = update_map (map, measurements);
         end
-        
+
         % some new features?
         if not(isempty(measurements.z_n))
             [map] = add_new_features (map, measurements);
@@ -176,6 +176,7 @@ function[map] = Kalman_filter_slam (map, steps)
 
         if mod(k+1, map_interval) == 0 || k == steps
             [map, map_list] = reset_map(map, map_list);
+            map_joining = true;
         end
     end
 
@@ -342,7 +343,7 @@ function[map, map_list] = reset_map(map, map_list)
     n_visible = length(visible_ids);
 
     map.n_visible = n_visible;
-    map.visible_ids = visible_ids;
+    % map.visible_ids = visible_ids;
     map_list{end+1} = map;
 
     map.true_ids = map.true_ids(end-n_visible:end);
@@ -370,8 +371,15 @@ function[map] = join_maps (map_list)
     map = map_list{1};
     for k = 2:length(map_list)
         new_map = map_list{k};
-        n1 = map.n - map.visible_ids;
+        n1 = map.n - map.n_visible;
         n2 = new_map.n;
+        if k ~= length(map_list)
+            n2 = n2 - new_map.n_visible;
+            new_map.hat_x = new_map.hat_x(1:end-new_map.n_visible);
+            new_map.hat_P = new_map.hat_P(1:end-new_map.n_visible, 1:end-new_map.n_visible);
+            new_map.true_x = new_map.true_x(1:end-new_map.n_visible);
+            new_map.true_ids = new_map.true_ids(1:end-new_map.n_visible);
+        end
 
         I = eye(n1 + 1);
         extra_rows = zeros(n2, n1 + 1);
@@ -384,12 +392,18 @@ function[map] = join_maps (map_list)
         J2(n1 + 2:end, 2:end) = eye(n2);
         J2 = sparse(J2);
 
-        map.hat_x = J1 * map.hat_x + J2 * new_map.hat_x;
-        map.hat_P = J1 * map.hat_P * J1' + J2 * new_map.hat_P * J2';
-        map.true_x = J1 * map.true_x + J2 * new_map.true_x; %%%%%%%%%%%%
+        new_map.hat_x = new_map.hat_x - map.hat_x(1);
+        new_map.true_x = new_map.true_x - map.true_x(1);
+        new_map.hat_P = new_map.hat_P - map.hat_P(1,1);
+        
+        aux1 = J1 * map.hat_x(1:end-map.n_visible);
+        aux2 = J2 * new_map.hat_x;
+        map.hat_x = J1 * map.hat_x(1:end-map.n_visible) + J2 * new_map.hat_x;
+        map.hat_P = J1 * map.hat_P(1:end-map.n_visible, 1:end-map.n_visible) * J1' + J2 * new_map.hat_P * J2';
+        map.true_x = J1 * map.true_x(1:end-map.n_visible) + J2 * new_map.true_x; %%%%%%%%%%%%
 
-        map.n = map.n + new_map.n;
-        map.true_ids = [map.true_ids; new_map.true_ids];
+        map.n = n1 + n2;
+        map.true_ids = [map.true_ids(1:end-map.n_visible-1); new_map.true_ids];
 
         map.stats.true_x = [map.stats.true_x; new_map.stats.true_x(1:end-1)];
         map.stats.error_x = [map.stats.error_x; new_map.stats.error_x];
