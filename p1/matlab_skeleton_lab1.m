@@ -104,7 +104,7 @@ global map;
 
 [map] = Kalman_filter_slam (map, config.steps_per_map);
 
-display_map_results (map);
+%display_map_results (map);
 
 %-------------------------------------------------------------------------
 % END
@@ -144,10 +144,10 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.error_x = [];
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
-
-    map_interval = steps/8;
-    map_joining = false;
     
+    num_maps = 128;
+    map_interval = floor((steps + num_maps)/ num_maps);
+    tstart_total = tic;
     for k = 0:steps
         
         tstart = tic;
@@ -176,11 +176,19 @@ function[map] = Kalman_filter_slam (map, steps)
 
         if mod(k+1, map_interval) == 0 || k == steps
             [map, map_list] = reset_map(map, map_list);
-            map_joining = true;
         end
     end
-
+    
+    tstart_join = tic;
     map = join_maps(map_list);
+    map.stats.cost_t = [map.stats.cost_t; toc(tstart_join)];
+
+    elapsed_time = toc(tstart_total);
+    % fprintf('Tiempo total transcurrido: %.4f segundos\n', elapsed_time);
+    fprintf('%.4f;\n', elapsed_time);
+    fileID = fopen('result/elapse_time.txt', 'a');
+    fprintf(fileID, '%.4f;', elapsed_time);
+    fclose(fileID);
 end
 
 %-------------------------------------------------------------------------
@@ -278,7 +286,6 @@ function[map] = update_map (map, measurements)
         H_k(i, measurements.x_pos_f(i)) = 1;
     end
     
-    var = H_k * map.hat_x;
     y_k = z_f - H_k * map.hat_x;
 
     S_k = H_k * map.hat_P * H_k' + R_f;
@@ -396,8 +403,6 @@ function[map] = join_maps (map_list)
         new_map.true_x = new_map.true_x - map.true_x(1);
         new_map.hat_P = new_map.hat_P - map.hat_P(1,1);
         
-        aux1 = J1 * map.hat_x(1:end-map.n_visible);
-        aux2 = J2 * new_map.hat_x;
         map.hat_x = J1 * map.hat_x(1:end-map.n_visible) + J2 * new_map.hat_x;
         map.hat_P = J1 * map.hat_P(1:end-map.n_visible, 1:end-map.n_visible) * J1' + J2 * new_map.hat_P * J2';
         map.true_x = J1 * map.true_x(1:end-map.n_visible) + J2 * new_map.true_x; %%%%%%%%%%%%
@@ -444,6 +449,7 @@ function  display_map_results (map)
     
     grid on;
     hold on;
+    map.stats.true_x = [map.stats.true_x; map.stats.true_x(end)+1];
     plot(map.stats.true_x, map.stats.cost_t,'r-','Linewidth',2);
     xlabel('step');
     ylabel('seconds');
@@ -465,6 +471,7 @@ function  display_map_results (map)
     axis([0 map.stats.true_x(end) -2*max(map.stats.sigma_x) 2*max(map.stats.sigma_x)]);
     grid on;
     hold on;
+    map.stats.true_x = map.stats.true_x(1:end-1);
     plot(map.stats.true_x, map.stats.error_x,'r-','Linewidth',2);
     plot(map.stats.true_x, 2*map.stats.sigma_x,'b-','Linewidth',2);
     plot(map.stats.true_x,-2*map.stats.sigma_x,'b-','Linewidth',2);

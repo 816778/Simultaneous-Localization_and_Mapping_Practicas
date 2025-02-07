@@ -145,7 +145,7 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
 
-    map_interval = steps/2;
+    map_interval = floor(steps / 2);
     map_joining = false;
     
     for k = 0:steps
