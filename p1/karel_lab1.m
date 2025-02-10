@@ -47,7 +47,7 @@ global robot;
 %    factor_x: fraction of the motion that constitutes odometry error
 %     true_uk: ground true robot motion per step
 
-robot.factor_x = 0.1; % ten percent
+robot.factor_x = 0.1; % ten percent 0.1
 robot.true_uk = 1; % each true motion is 1m
 %-------------------------------------------------------------------------
 
@@ -103,7 +103,6 @@ global map;
 %-------------------------------------------------------------------------
 
 [map] = Kalman_filter_slam (map, config.steps_per_map);
-
 display_map_results (map);
 
 %-------------------------------------------------------------------------
@@ -144,10 +143,10 @@ function[map] = Kalman_filter_slam (map, steps)
     map.stats.error_x = [];
     map.stats.sigma_x = [];
     map.stats.cost_t = [];
-
-    map_interval = floor(steps / 2);
-    map_joining = false;
     
+    num_maps = 8;
+    map_interval = floor((steps + num_maps)/ num_maps);
+    tstart_total = tic;
     for k = 0:steps
         
         tstart = tic;
@@ -163,7 +162,7 @@ function[map] = Kalman_filter_slam (map, steps)
         if not(isempty(measurements.z_f))
             [map] = update_map (map, measurements);
         end
-        
+
         % some new features?
         if not(isempty(measurements.z_n))
             [map] = add_new_features (map, measurements);
@@ -175,23 +174,20 @@ function[map] = Kalman_filter_slam (map, steps)
         map.stats.cost_t = [map.stats.cost_t; toc(tstart)];
 
         if mod(k+1, map_interval) == 0 || k == steps
-            map_joining = true;
-        %     map_list{end+1} = map;
-        %     map.hat_x = [map.hat_x(1)]; 
-        %     map.hat_P = [map.hat_P(1,1)];
-        % 
-        %     map.true_x = [map.true_x(1)]; %%%%%%
-        %     map.n = 0;  
-        %     map.true_ids = []; 
-        % 
-        %     map.stats.true_x = [map.stats.true_x(end)];
-        %     map.stats.error_x = [];
-        %     map.stats.sigma_x = [];
-        %     map.stats.cost_t = [];
+            [map, map_list] = reset_map(map, map_list);
         end
     end
+    
+    tstart_join = tic;
+    map = join_maps(map_list);
+    map.stats.cost_t = [map.stats.cost_t; toc(tstart_join)];
 
-    % map = join_maps(map_list);
+    elapsed_time = toc(tstart_total);
+    % fprintf('Tiempo total transcurrido: %.4f segundos\n', elapsed_time);
+    fprintf('%.4f;\n', elapsed_time);
+    % fileID = fopen('result/elapse_time.txt', 'a');
+    % fprintf(fileID, '%.4f;', elapsed_time);
+    % fclose(fileID);
 end
 
 %-------------------------------------------------------------------------
@@ -289,7 +285,6 @@ function[map] = update_map (map, measurements)
         H_k(i, measurements.x_pos_f(i)) = 1;
     end
     
-    var = H_k * map.hat_x;
     y_k = z_f - H_k * map.hat_x;
 
     S_k = H_k * map.hat_P * H_k' + R_f;
@@ -342,17 +337,46 @@ function [map] = add_new_features (map, measurements)
     end
 end
 
+%
+% reset_map
+%
+function[map, map_list] = reset_map(map, map_list)
+    global world;
+    global sensor;
+
+    distances = world.true_point_locations - world.true_robot_location;
+    visible_ids = find((distances >= sensor.range_min) & (distances <= sensor.range_max));
+    n_visible = length(visible_ids);
+
+    map.n_visible = n_visible;
+    map_list{end+1} = map;
+
+    map.true_ids = map.true_ids(end-n_visible:end);
+    map.hat_x = [map.hat_x(1); map.hat_x(end-n_visible+1:end)]; 
+
+    filasSeleccionadas = [1, size(map.hat_P,1)-n_visible+1:size(map.hat_P,1)];
+    columnasSeleccionadas = [1, size(map.hat_P,2)-n_visible+1:size(map.hat_P,2)];
+    map.hat_P = map.hat_P(filasSeleccionadas, columnasSeleccionadas);
+
+    map.true_x = [map.true_x(1); map.true_x(end-n_visible+1:end)]; %%%%%%
+    map.n = n_visible;  
+
+    map.stats.true_x = [map.stats.true_x(end)];
+    map.stats.error_x = [];
+    map.stats.sigma_x = [];
+    map.stats.cost_t = [];
+
+end
+
 %-------------------------------------------------------------------------
 % join maps
 %-------------------------------------------------------------------------
 function[map] = join_maps (map_list)
     global map
     map = map_list{1};
-    % map.true_x = map_list{end}.true_x;
-    % map.stats = map_list{end}.stats;
     for k = 2:length(map_list)
         new_map = map_list{k};
-        n1 = map.n;
+        n1 = map.n - map.n_visible;
         n2 = new_map.n;
 
         I = eye(n1 + 1);
@@ -366,12 +390,16 @@ function[map] = join_maps (map_list)
         J2(n1 + 2:end, 2:end) = eye(n2);
         J2 = sparse(J2);
 
-        map.hat_x = J1 * map.hat_x + J2 * new_map.hat_x;
-        map.hat_P = J1 * map.hat_P * J1' + J2 * new_map.hat_P * J2';
-        map.true_x = J1 * map.true_x + J2 * new_map.true_x; %%%%%%%%%%%%
+        new_map.hat_x = new_map.hat_x - map.hat_x(1);
+        new_map.true_x = new_map.true_x - map.true_x(1);
+        new_map.hat_P = new_map.hat_P - map.hat_P(1,1);
+        
+        map.hat_x = J1 * map.hat_x(1:end-map.n_visible) + J2 * new_map.hat_x;
+        map.hat_P = J1 * map.hat_P(1:end-map.n_visible, 1:end-map.n_visible) * J1' + J2 * new_map.hat_P * J2';
+        map.true_x = J1 * map.true_x(1:end-map.n_visible) + J2 * new_map.true_x; %%%%%%%%%%%%
 
-        map.n = map.n + new_map.n;
-        map.true_ids = [map.true_ids; new_map.true_ids];
+        map.n = n1 + n2;
+        map.true_ids = [map.true_ids(1:end-map.n_visible-1); new_map.true_ids];
 
         map.stats.true_x = [map.stats.true_x; new_map.stats.true_x(1:end-1)];
         map.stats.error_x = [map.stats.error_x; new_map.stats.error_x];
@@ -412,6 +440,7 @@ function  display_map_results (map)
     
     grid on;
     hold on;
+    map.stats.true_x = [map.stats.true_x; map.stats.true_x(end)+1];
     plot(map.stats.true_x, map.stats.cost_t,'r-','Linewidth',2);
     xlabel('step');
     ylabel('seconds');
@@ -433,6 +462,7 @@ function  display_map_results (map)
     axis([0 map.stats.true_x(end) -2*max(map.stats.sigma_x) 2*max(map.stats.sigma_x)]);
     grid on;
     hold on;
+    map.stats.true_x = map.stats.true_x(1:end-1);
     plot(map.stats.true_x, map.stats.error_x,'r-','Linewidth',2);
     plot(map.stats.true_x, 2*map.stats.sigma_x,'b-','Linewidth',2);
     plot(map.stats.true_x,-2*map.stats.sigma_x,'b-','Linewidth',2);
