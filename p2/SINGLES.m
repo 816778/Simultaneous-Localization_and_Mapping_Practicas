@@ -21,5 +21,6 @@ H = zeros(1, observations.m);
 %
 % compatibility.ic(i,j) = 1 if observation i is a neighbour of
 % feature j.
-            
+
+
 configuration.name = 'SINGLES';
