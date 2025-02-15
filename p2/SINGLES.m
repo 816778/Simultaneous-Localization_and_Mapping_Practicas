@@ -22,5 +22,14 @@ H = zeros(1, observations.m);
 % compatibility.ic(i,j) = 1 if observation i is a neighbour of
 % feature j.
 
-
+for i = 1:observations.m
+    neighbors_i = find(compatibility.ic(i, :) == 1);
+    if isscalar(neighbors_i)
+        j = neighbors_i(1);
+        neighbors_j = find(compatibility.ic(:, j) == 1);
+        if isscalar(neighbors_j) && neighbors_j(1) == i
+            H(i) = j;
+        end
+    end
+end
 configuration.name = 'SINGLES';
