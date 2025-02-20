@@ -19,8 +19,8 @@ configuration.tags = 0;
 configuration.odometry = 1;
 configuration.noise = 1;
 configuration.alpha = 0.99; % only useful is chi2inv is available
-configuration.step_by_step = 1;
-configuration.people = 0;
+configuration.step_by_step = 0;
+configuration.people = 1;
 configuration.ekf_iterations = 4;
 configuration.maintenance = 1;
 
