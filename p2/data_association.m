@@ -20,7 +20,8 @@ disp(['GROUND  TRUTH: ' sprintf('%2d  ', GT)]);
 % 6. Eliminate features included in the map two steps ago, and never seen again
 
 % H = NN (prediction, observations, compatibility);
-H = SINGLES (prediction, observations, compatibility);
+% H = SINGLES (prediction, observations, compatibility);
+H = JCBB (prediction, observations, compatibility);
 
 disp(['MY HYPOTHESIS: ' sprintf('%2d  ', H)]);
 disp(['Correct (1/0)? ' sprintf('%2d  ', GT == H)]);

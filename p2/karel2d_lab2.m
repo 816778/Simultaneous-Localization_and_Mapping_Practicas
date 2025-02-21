@@ -20,7 +20,7 @@ configuration.odometry = 1;
 configuration.noise = 1;
 configuration.alpha = 0.99; % only useful is chi2inv is available
 configuration.step_by_step = 0;
-configuration.people = 1;
+configuration.people = 0;
 configuration.ekf_iterations = 4;
 configuration.maintenance = 1;
 
@@ -177,8 +177,10 @@ for step = 2 : steps,
     %
     % unreliable: features seen only once, more than two steps ago
 
-    % unreliable = ; 
-    % map = erase_features(map, unreliable);
+    if configuration.maintenance
+        unreliable = find(map.hits == 1 & map.first < (step - 2));
+        map = erase_features(map, unreliable);
+    end
     
     draw_map (map, ground, step);
     results = store_results(results, observations, GT, H);
