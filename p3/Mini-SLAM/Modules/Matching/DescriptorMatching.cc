@@ -138,8 +138,8 @@ int searchForInitializaion(Frame& refFrame, Frame& currFrame, int th, vector<int
         }
     }
     
-    //drawMatchesVisualization(refFrame, currFrame, vMatches);
-    return 0;
+    // drawMatchesVisualization(refFrame, currFrame, vMatches);
+    return nMatches;
 }
 
 void drawMatchesVisualization(Frame& refFrame, Frame& currFrame, std::vector<int>& vMatches) {
