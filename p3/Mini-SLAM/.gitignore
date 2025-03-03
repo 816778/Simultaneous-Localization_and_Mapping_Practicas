@@ -1,0 +1,12 @@
+Thirdparty/g2o/lib/
+Thirdparty/g2o/bin/
+Thirdparty/OpenCV/
+Thirdparty/Pangolin/
+
+build/
+
+Apps/mono_euroc
+Apps/mono_tumrgbd
+Lab0/Apps/task_1
+Lab0/Apps/task_2
+Lab0/Apps/task_3

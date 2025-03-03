@@ -209,3 +209,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+Apps
+Data
+datasets
+Documentation
+Evaluation
+Lab0
+Thirdparty
